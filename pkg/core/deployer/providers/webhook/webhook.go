@@ -3,6 +3,7 @@ package webhook
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -163,6 +164,11 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 	replaceJsonValueRecursively(webhookData, "${CERTIMATE_DEPLOYER_CERTIFICATE_SERVER}", serverCertPEM)
 	replaceJsonValueRecursively(webhookData, "${CERTIMATE_DEPLOYER_CERTIFICATE_INTERMEDIA}", intermediaCertPEM)
 	replaceJsonValueRecursively(webhookData, "${CERTIMATE_DEPLOYER_PRIVATEKEY}", privkeyPEM)
+	// BASE64 编码版本
+	replaceJsonValueRecursively(webhookData, "${CERTIMATE_DEPLOYER_CERTIFICATE_BASE64}", base64.StdEncoding.EncodeToString([]byte(certPEM)))
+	replaceJsonValueRecursively(webhookData, "${CERTIMATE_DEPLOYER_CERTIFICATE_SERVER_BASE64}", base64.StdEncoding.EncodeToString([]byte(serverCertPEM)))
+	replaceJsonValueRecursively(webhookData, "${CERTIMATE_DEPLOYER_CERTIFICATE_INTERMEDIA_BASE64}", base64.StdEncoding.EncodeToString([]byte(intermediaCertPEM)))
+	replaceJsonValueRecursively(webhookData, "${CERTIMATE_DEPLOYER_PRIVATEKEY_BASE64}", base64.StdEncoding.EncodeToString([]byte(privkeyPEM)))
 
 	// 兼容旧版变量
 	webhookUrl.Path = strings.ReplaceAll(webhookUrl.Path, "${DOMAIN}", url.PathEscape(certX509.Subject.CommonName))
