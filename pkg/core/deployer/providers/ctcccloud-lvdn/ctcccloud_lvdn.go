@@ -12,7 +12,7 @@ import (
 	mcertmgr "github.com/certimate-go/certimate/pkg/core/certmgr/providers/ctcccloud-lvdn"
 	"github.com/certimate-go/certimate/pkg/core/deployer"
 	ctyunlvdn "github.com/certimate-go/certimate/pkg/sdk3rd/ctyun/lvdn"
-	xcert "github.com/certimate-go/certimate/pkg/utils/cert"
+	xcerthostname "github.com/certimate-go/certimate/pkg/utils/cert/hostname"
 )
 
 type DeployerConfig struct {
@@ -93,18 +93,13 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 
 	case DOMAIN_MATCH_PATTERN_CERTSAN:
 		{
-			certX509, err := xcert.ParseCertificateFromPEM(certPEM)
-			if err != nil {
-				return nil, err
-			}
-
 			domainCandidates, err := d.getAllDomains(ctx)
 			if err != nil {
 				return nil, err
 			}
 
 			domains = lo.Filter(domainCandidates, func(domain string, _ int) bool {
-				return certX509.VerifyHostname(domain) == nil
+				return xcerthostname.IsMatchByCertificatePEM(certPEM, domain)
 			})
 			if len(domains) == 0 {
 				return nil, errors.New("could not find any domains matched by certificate")
@@ -160,7 +155,7 @@ func (d *Deployer) getAllDomains(ctx context.Context) ([]string, error) {
 			PageSize:    lo.ToPtr(int32(queryDomainsPageSize)),
 			ProductCode: lo.ToPtr("005"),
 		}
-		queryDomainListResp, err := d.sdkClient.QueryDomainList(queryDomainListReq)
+		queryDomainListResp, err := d.sdkClient.QueryDomainListWithContext(ctx, queryDomainListReq)
 		d.logger.Debug("sdk request 'cdn.QueryDomainList'", slog.Any("request", queryDomainListReq), slog.Any("response", queryDomainListResp))
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute sdk request 'cdn.QueryDomainList': %w", err)
@@ -196,7 +191,7 @@ func (d *Deployer) updateDomainCertificate(ctx context.Context, domain string, c
 		Domain:      lo.ToPtr(domain),
 		ProductCode: lo.ToPtr("005"),
 	}
-	queryDomainDetailResp, err := d.sdkClient.QueryDomainDetail(queryDomainDetailReq)
+	queryDomainDetailResp, err := d.sdkClient.QueryDomainDetailWithContext(ctx, queryDomainDetailReq)
 	d.logger.Debug("sdk request 'lvdn.QueryDomainDetail'", slog.Any("request", queryDomainDetailReq), slog.Any("response", queryDomainDetailResp))
 	if err != nil {
 		return fmt.Errorf("failed to execute sdk request 'lvdn.QueryDomainDetail': %w", err)
@@ -210,7 +205,7 @@ func (d *Deployer) updateDomainCertificate(ctx context.Context, domain string, c
 		HttpsSwitch: lo.ToPtr(int32(1)),
 		CertName:    lo.ToPtr(cloudCertName),
 	}
-	updateDomainResp, err := d.sdkClient.UpdateDomain(updateDomainReq)
+	updateDomainResp, err := d.sdkClient.UpdateDomainWithContext(ctx, updateDomainReq)
 	d.logger.Debug("sdk request 'lvdn.UpdateDomain'", slog.Any("request", updateDomainReq), slog.Any("response", updateDomainResp))
 	if err != nil {
 		return fmt.Errorf("failed to execute sdk request 'lvdn.UpdateDomain': %w", err)

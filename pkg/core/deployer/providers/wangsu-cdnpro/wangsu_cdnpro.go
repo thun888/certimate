@@ -20,7 +20,7 @@ import (
 
 	"github.com/certimate-go/certimate/pkg/core/deployer"
 	wangsucdn "github.com/certimate-go/certimate/pkg/sdk3rd/wangsu/cdnpro"
-	xcert "github.com/certimate-go/certimate/pkg/utils/cert"
+	xwait "github.com/certimate-go/certimate/pkg/utils/wait"
 )
 
 type DeployerConfig struct {
@@ -83,14 +83,8 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 		return nil, errors.New("config `domain` is required")
 	}
 
-	// 解析证书内容
-	certX509, err := xcert.ParseCertificateFromPEM(certPEM)
-	if err != nil {
-		return nil, err
-	}
-
 	// 查询已部署加速域名的详情
-	getHostnameDetailResp, err := d.sdkClient.GetHostnameDetail(d.config.Domain)
+	getHostnameDetailResp, err := d.sdkClient.GetHostnameDetailWithContext(ctx, d.config.Domain)
 	d.logger.Debug("sdk request 'cdnpro.GetHostnameDetail'", slog.String("hostname", d.config.Domain), slog.Any("response", getHostnameDetailResp))
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute sdk request 'cdnpro.GetHostnameDetail': %w", err)
@@ -104,10 +98,6 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 	certificateNewVersionInfo := &wangsucdn.CertificateVersionInfo{
 		PrivateKey:  lo.ToPtr(encryptedPrivateKey),
 		Certificate: lo.ToPtr(certPEM),
-		IdentificationInfo: &wangsucdn.CertificateVersionIdentificationInfo{
-			CommonName:              lo.ToPtr(certX509.Subject.CommonName),
-			SubjectAlternativeNames: &certX509.DNSNames,
-		},
 	}
 
 	// 网宿云证书 URL 中包含证书 ID 及版本号
@@ -128,7 +118,7 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 			AutoRenew:  lo.ToPtr("Off"),
 			NewVersion: certificateNewVersionInfo,
 		}
-		createCertificateResp, err := d.sdkClient.CreateCertificate(createCertificateReq)
+		createCertificateResp, err := d.sdkClient.CreateCertificateWithContext(ctx, createCertificateReq)
 		d.logger.Debug("sdk request 'cdnpro.CreateCertificate'", slog.Any("request", createCertificateReq), slog.Any("response", createCertificateResp))
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute sdk request 'cdnpro.CreateCertificate': %w", err)
@@ -151,7 +141,7 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 			AutoRenew:  lo.ToPtr("Off"),
 			NewVersion: certificateNewVersionInfo,
 		}
-		updateCertificateResp, err := d.sdkClient.UpdateCertificate(d.config.CertificateId, updateCertificateReq)
+		updateCertificateResp, err := d.sdkClient.UpdateCertificateWithContext(ctx, d.config.CertificateId, updateCertificateReq)
 		d.logger.Debug("sdk request 'cdnpro.CreateCertificate'", slog.Any("certificateId", d.config.CertificateId), slog.Any("request", updateCertificateReq), slog.Any("response", updateCertificateResp))
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute sdk request 'cdnpro.UpdateCertificate': %w", err)
@@ -174,6 +164,7 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 
 	// 创建部署任务
 	// REF: https://www.wangsu.com/document/api-doc/27034
+	var wangsuTaskId string
 	createDeploymentTaskReq := &wangsucdn.CreateDeploymentTaskRequest{
 		Name:   lo.ToPtr(fmt.Sprintf("certimate_%d", time.Now().UnixMilli())),
 		Target: lo.ToPtr(d.config.Environment),
@@ -188,40 +179,36 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 	if d.config.WebhookId != "" {
 		createDeploymentTaskReq.Webhook = lo.ToPtr(d.config.WebhookId)
 	}
-	createDeploymentTaskResp, err := d.sdkClient.CreateDeploymentTask(createDeploymentTaskReq)
+	createDeploymentTaskResp, err := d.sdkClient.CreateDeploymentTaskWithContext(ctx, createDeploymentTaskReq)
 	d.logger.Debug("sdk request 'cdnpro.CreateCertificate'", slog.Any("request", createDeploymentTaskReq), slog.Any("response", createDeploymentTaskResp))
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute sdk request 'cdnpro.CreateDeploymentTask': %w", err)
-	}
-
-	// 循环获取部署任务详细信息，等待任务状态变更
-	// REF: https://www.wangsu.com/document/api-doc/27038
-	var wangsuTaskId string
-	wangsuTaskMatches := regexp.MustCompile(`/deploymentTasks/([a-zA-Z0-9-]+)`).FindStringSubmatch(createDeploymentTaskResp.DeploymentTaskLocation)
-	if len(wangsuTaskMatches) > 1 {
-		wangsuTaskId = wangsuTaskMatches[1]
-	}
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
+	} else {
+		wangsuTaskMatches := regexp.MustCompile(`/deploymentTasks/([a-zA-Z0-9-]+)`).FindStringSubmatch(createDeploymentTaskResp.DeploymentTaskLocation)
+		if len(wangsuTaskMatches) > 1 {
+			wangsuTaskId = wangsuTaskMatches[1]
 		}
+	}
 
-		getDeploymentTaskDetailResp, err := d.sdkClient.GetDeploymentTaskDetail(wangsuTaskId)
+	// 获取部署任务详细信息，等待任务状态变更
+	// REF: https://www.wangsu.com/document/api-doc/27038
+	if _, err := xwait.UntilWithContext(ctx, func(_ context.Context, _ int) (bool, error) {
+		getDeploymentTaskDetailResp, err := d.sdkClient.GetDeploymentTaskDetailWithContext(ctx, wangsuTaskId)
 		d.logger.Info("sdk request 'cdnpro.GetDeploymentTaskDetail'", slog.Any("taskId", wangsuTaskId), slog.Any("response", getDeploymentTaskDetailResp))
 		if err != nil {
-			return nil, fmt.Errorf("failed to execute sdk request 'cdnpro.GetDeploymentTaskDetail': %w", err)
+			return false, fmt.Errorf("failed to execute sdk request 'cdnpro.GetDeploymentTaskDetail': %w", err)
 		}
 
 		if getDeploymentTaskDetailResp.Status == "failed" {
-			return nil, errors.New("unexpected wangsu deployment task status")
+			return false, fmt.Errorf("unexpected wangsu deployment task status")
 		} else if getDeploymentTaskDetailResp.Status == "succeeded" || getDeploymentTaskDetailResp.FinishTime != "" {
-			break
+			return true, nil
 		}
 
 		d.logger.Info(fmt.Sprintf("waiting for wangsu deployment task completion (current status: %s) ...", getDeploymentTaskDetailResp.Status))
-		time.Sleep(time.Second * 5)
+		return false, nil
+	}, time.Second*5); err != nil {
+		return nil, err
 	}
 
 	return &deployer.DeployResult{}, nil

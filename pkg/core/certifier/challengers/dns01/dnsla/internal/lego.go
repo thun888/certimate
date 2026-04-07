@@ -43,7 +43,7 @@ type DNSProvider struct {
 	config *Config
 	client *dnslasdk.Client
 
-	recordIDs   map[string]string
+	recordIDs   map[string]string // Key: ChallengeToken; Value: RecordID
 	recordIDsMu sync.Mutex
 }
 
@@ -168,7 +168,7 @@ func (d *DNSProvider) findZone(zoneName string) (*dnslasdk.DomainRecord, error) 
 		}
 
 		for _, domainItem := range response.Data.Results {
-			if strings.TrimRight(domainItem.Domain, ".") == zoneName || strings.TrimRight(domainItem.DisplayDomain, ".") == zoneName {
+			if strings.TrimSuffix(domainItem.Domain, ".") == zoneName || strings.TrimSuffix(domainItem.DisplayDomain, ".") == zoneName {
 				return domainItem, nil
 			}
 		}

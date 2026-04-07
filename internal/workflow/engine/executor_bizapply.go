@@ -72,7 +72,7 @@ func (ne *bizApplyNodeExecutor) Execute(execCtx *NodeExecutionContext) (*NodeExe
 		return execRes, err
 	} else {
 		if lastOutput != nil {
-			ne.logger.Info(fmt.Sprintf("found last workrun #%s record", lastOutput.RunId))
+			ne.logger.Info(fmt.Sprintf("found last node output #%s record", lastOutput.RunId))
 		}
 
 		if lastCertificate != nil {
@@ -112,13 +112,12 @@ func (ne *bizApplyNodeExecutor) Execute(execCtx *NodeExecutionContext) (*NodeExe
 		IssuerCertificate: obtainResp.IssuerCertificate,
 		ACMEAcctUrl:       obtainResp.ACMEAcctUrl,
 		ACMECertUrl:       obtainResp.ACMECertUrl,
-		ACMECertStableUrl: obtainResp.ACMECertStableUrl,
 		WorkflowId:        execCtx.WorkflowId,
 		WorkflowRunId:     execCtx.RunId,
 		WorkflowNodeId:    execCtx.Node.Id,
 	}
 	certificate.PopulateFromPEM(obtainResp.FullChainCertificate, obtainResp.PrivateKey)
-	if certificate, err := ne.certificateRepo.Save(execCtx.ctx, certificate); err != nil {
+	if certificate, err := ne.certificateRepo.Save(execCtx.Context(), certificate); err != nil {
 		ne.logger.Warn("could not save certificate")
 		return execRes, err
 	} else {
@@ -128,7 +127,7 @@ func (ne *bizApplyNodeExecutor) Execute(execCtx *NodeExecutionContext) (*NodeExe
 	// 保存 ARI 替换状态
 	if lastCertificate != nil && obtainResp.ARIReplaced {
 		lastCertificate.IsRenewed = true
-		ne.certificateRepo.Save(execCtx.ctx, lastCertificate)
+		ne.certificateRepo.Save(execCtx.Context(), lastCertificate)
 	}
 
 	// 节点输出
@@ -140,13 +139,13 @@ func (ne *bizApplyNodeExecutor) Execute(execCtx *NodeExecutionContext) (*NodeExe
 }
 
 func (ne *bizApplyNodeExecutor) getLastOutputArtifacts(execCtx *NodeExecutionContext) (*domain.WorkflowOutput, *domain.Certificate, error) {
-	lastOutput, err := ne.wfoutputRepo.GetByWorkflowIdAndNodeId(execCtx.ctx, execCtx.WorkflowId, execCtx.Node.Id)
+	lastOutput, err := ne.wfoutputRepo.GetByWorkflowIdAndNodeId(execCtx.Context(), execCtx.WorkflowId, execCtx.Node.Id)
 	if err != nil && !domain.IsRecordNotFoundError(err) {
 		return nil, nil, fmt.Errorf("failed to get last output record of node #%s: %w", execCtx.Node.Id, err)
 	}
 
 	if lastOutput != nil {
-		lastCertificate, err := ne.certificateRepo.GetByWorkflowRunIdAndNodeId(execCtx.ctx, lastOutput.RunId, lastOutput.NodeId)
+		lastCertificate, err := ne.certificateRepo.GetByWorkflowRunIdAndNodeId(execCtx.Context(), lastOutput.RunId, lastOutput.NodeId)
 		if err != nil && !domain.IsRecordNotFoundError(err) {
 			return lastOutput, nil, fmt.Errorf("failed to get last certificate record of node #%s: %w", execCtx.Node.Id, err)
 		}
@@ -212,11 +211,16 @@ func (ne *bizApplyNodeExecutor) checkCanSkip(execCtx *NodeExecutionContext, last
 	}
 
 	if lastCertificate != nil {
+		if lastCertificate.IsRevoked {
+			return false, "the last requested certificate has been revoked"
+		}
+
 		renewalInterval := time.Duration(thisNodeCfg.SkipBeforeExpiryDays) * time.Hour * 24
 		expirationTime := time.Until(lastCertificate.ValidityNotAfter)
 		daysLeft := int(math.Floor(expirationTime.Hours() / 24))
 		if expirationTime > renewalInterval {
-			return true, fmt.Sprintf("the last requested certificate expires in %d day(s), next renewal will be in %d day(s)", daysLeft, thisNodeCfg.SkipBeforeExpiryDays)
+			daysUntilRenewal := int(math.Ceil((expirationTime - renewalInterval).Hours() / 24))
+			return true, fmt.Sprintf("the last requested certificate expires in %d day(s), a renewal will be performed when the remaining validity is less than %d day(s), and the next renewal will be in %d day(s)", daysLeft, thisNodeCfg.SkipBeforeExpiryDays, daysUntilRenewal)
 		}
 
 		return false, fmt.Sprintf("the last requested certificate expires in %d day(s), the renewal window period has been reached", daysLeft)
@@ -264,7 +268,7 @@ func (ne *bizApplyNodeExecutor) executeObtain(execCtx *NodeExecutionContext, nod
 	// 读取质询提供商授权
 	providerAccessConfig := make(map[string]any)
 	if nodeCfg.ProviderAccessId != "" {
-		if access, err := ne.accessRepo.GetById(execCtx.ctx, nodeCfg.ProviderAccessId); err != nil {
+		if access, err := ne.accessRepo.GetById(execCtx.Context(), nodeCfg.ProviderAccessId); err != nil {
 			return nil, fmt.Errorf("failed to get access #%s record: %w", nodeCfg.ProviderAccessId, err)
 		} else {
 			providerAccessConfig = access.Config
@@ -274,7 +278,7 @@ func (ne *bizApplyNodeExecutor) executeObtain(execCtx *NodeExecutionContext, nod
 	// 读取证书颁发机构授权
 	caAccessConfig := make(map[string]any)
 	if nodeCfg.CAProviderAccessId != "" {
-		if access, err := ne.accessRepo.GetById(execCtx.ctx, nodeCfg.CAProviderAccessId); err != nil {
+		if access, err := ne.accessRepo.GetById(execCtx.Context(), nodeCfg.CAProviderAccessId); err != nil {
 			return nil, fmt.Errorf("failed to get access #%s record: %w", nodeCfg.CAProviderAccessId, err)
 		} else {
 			caAccessConfig = access.Config
@@ -393,7 +397,7 @@ func (ne *bizApplyNodeExecutor) executeObtain(execCtx *NodeExecutionContext, nod
 		}
 
 		msender := mproc.NewSender[InData, OutData]("certapply", ne.logger)
-		moutput, err := msender.SendWithContext(execCtx.ctx, &InData{
+		moutput, err := msender.SendWithContext(execCtx.Context(), &InData{
 			Account: legoUser,
 			Request: obtainReq,
 		})
@@ -423,7 +427,7 @@ func (ne *bizApplyNodeExecutor) executeObtain(execCtx *NodeExecutionContext, nod
 	}
 
 	// 执行申请证书请求
-	obtainResp, err := legoClient.ObtainCertificate(execCtx.ctx, obtainReq)
+	obtainResp, err := legoClient.ObtainCertificate(execCtx.Context(), obtainReq)
 	if err != nil {
 		ne.logger.Warn("could not obtain certificate")
 		return nil, err

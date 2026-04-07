@@ -359,14 +359,14 @@ const WorkflowRunLogs = ({ runData }: { runData: WorkflowRunModel }) => {
 
       <div className="min-h-8 px-4 py-2">
         <Show when={!loading || listData.length > 0} fallback={<Skeleton />}>
-          {listData.map((group) => {
+          {listData.map((group, index) => {
             return (
-              <div className="mb-3">
-                <div className="truncate text-xs leading-loose">
+              <div key={index} className="mb-3">
+                <div className="truncate text-xs/loose">
                   <span className="font-mono text-stone-400">{`#${group.id}\u00A0`}</span>
                   <span>{group.name}</span>
                 </div>
-                <div className="flex flex-col text-xs leading-relaxed">{group.records.map((record) => renderLogRecord(record))}</div>
+                <div className="flex flex-col text-xs/relaxed">{group.records.map((record) => renderLogRecord(record))}</div>
               </div>
             );
           })}

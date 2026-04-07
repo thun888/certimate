@@ -14,7 +14,6 @@ import (
 	mcertmgr "github.com/certimate-go/certimate/pkg/core/certmgr/providers/ctcccloud-ao"
 	"github.com/certimate-go/certimate/pkg/core/deployer"
 	ctyunao "github.com/certimate-go/certimate/pkg/sdk3rd/ctyun/ao"
-	xcert "github.com/certimate-go/certimate/pkg/utils/cert"
 	xcerthostname "github.com/certimate-go/certimate/pkg/utils/cert/hostname"
 )
 
@@ -119,18 +118,13 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 
 	case DOMAIN_MATCH_PATTERN_CERTSAN:
 		{
-			certX509, err := xcert.ParseCertificateFromPEM(certPEM)
-			if err != nil {
-				return nil, err
-			}
-
 			domainCandidates, err := d.getAllDomains(ctx)
 			if err != nil {
 				return nil, err
 			}
 
 			domains = lo.Filter(domainCandidates, func(domain string, _ int) bool {
-				return certX509.VerifyHostname(domain) == nil
+				return xcerthostname.IsMatchByCertificatePEM(certPEM, domain)
 			})
 			if len(domains) == 0 {
 				return nil, errors.New("could not find any domains matched by certificate")
@@ -186,7 +180,7 @@ func (d *Deployer) getAllDomains(ctx context.Context) ([]string, error) {
 			PageSize:    lo.ToPtr(int32(queryDomainsPageSize)),
 			ProductCode: lo.ToPtr("020"),
 		}
-		queryDomainsResp, err := d.sdkClient.QueryDomains(queryDomainsReq)
+		queryDomainsResp, err := d.sdkClient.QueryDomainsWithContext(ctx, queryDomainsReq)
 		d.logger.Debug("sdk request 'cdn.QueryDomains'", slog.Any("request", queryDomainsReq), slog.Any("response", queryDomainsResp))
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute sdk request 'cdn.QueryDomains': %w", err)
@@ -222,7 +216,7 @@ func (d *Deployer) updateDomainCertificate(ctx context.Context, domain string, c
 		Domain:      lo.ToPtr(domain),
 		ProductCode: lo.ToPtr("020"),
 	}
-	getDomainConfigResp, err := d.sdkClient.GetDomainConfig(getDomainConfigReq)
+	getDomainConfigResp, err := d.sdkClient.GetDomainConfigWithContext(ctx, getDomainConfigReq)
 	d.logger.Debug("sdk request 'cdn.GetDomainConfig'", slog.Any("request", getDomainConfigReq), slog.Any("response", getDomainConfigResp))
 	if err != nil {
 		return fmt.Errorf("failed to execute sdk request 'cdn.GetDomainConfig': %w", err)
@@ -247,7 +241,7 @@ func (d *Deployer) updateDomainCertificate(ctx context.Context, domain string, c
 		HttpsStatus: lo.ToPtr("on"),
 		CertName:    lo.ToPtr(cloudCertName),
 	}
-	modifyDomainConfigResp, err := d.sdkClient.ModifyDomainConfig(modifyDomainConfigReq)
+	modifyDomainConfigResp, err := d.sdkClient.ModifyDomainConfigWithContext(ctx, modifyDomainConfigReq)
 	d.logger.Debug("sdk request 'cdn.ModifyDomainConfig'", slog.Any("request", modifyDomainConfigReq), slog.Any("response", modifyDomainConfigResp))
 	if err != nil {
 		return fmt.Errorf("failed to execute sdk request 'cdn.ModifyDomainConfig': %w", err)

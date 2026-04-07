@@ -1,18 +1,16 @@
 package domain
 
-import (
-	"time"
-)
+import "time"
 
 const CollectionNameAccess = "access"
 
 type Access struct {
 	Meta
-	Name      string         `json:"name" db:"name"`
-	Provider  string         `json:"provider" db:"provider"`
-	Config    map[string]any `json:"config" db:"config"`
-	Reserve   string         `json:"reserve,omitempty" db:"reserve"`
-	DeletedAt *time.Time     `json:"deleted" db:"deleted"`
+	Name      string         `db:"name"     json:"name"`
+	Provider  string         `db:"provider" json:"provider"`
+	Config    map[string]any `db:"config"   json:"config"`
+	Reserve   string         `db:"reserve"  json:"reserve,omitempty"`
+	DeletedAt *time.Time     `db:"deleted" json:"deleted"`
 }
 
 type AccessConfigFor1Panel struct {
@@ -188,8 +186,9 @@ type AccessConfigForDigitalOcean struct {
 }
 
 type AccessConfigForDingTalkBot struct {
-	WebhookUrl string `json:"webhookUrl"`
-	Secret     string `json:"secret,omitempty"`
+	WebhookUrl    string `json:"webhookUrl"`
+	Secret        string `json:"secret,omitempty"`
+	CustomPayload string `json:"customPayload,omitempty"`
 }
 
 type AccessConfigForDiscordBot struct {
@@ -252,6 +251,10 @@ type AccessConfigForFlexCDN struct {
 	AccessKeyId              string `json:"accessKeyId"`
 	AccessKey                string `json:"accessKey"`
 	AllowInsecureConnections bool   `json:"allowInsecureConnections,omitempty"`
+}
+
+type AccessConfigForFlyIO struct {
+	ApiToken string `json:"apiToken"`
 }
 
 type AccessConfigForGandinet struct {
@@ -341,8 +344,9 @@ type AccessConfigForKsyun struct {
 }
 
 type AccessConfigForLarkBot struct {
-	WebhookUrl string `json:"webhookUrl"`
-	Secret     string `json:"secret,omitempty"`
+	WebhookUrl    string `json:"webhookUrl"`
+	Secret        string `json:"secret,omitempty"`
+	CustomPayload string `json:"customPayload,omitempty"`
 }
 
 type AccessConfigForLeCDN struct {
@@ -516,6 +520,14 @@ type AccessConfigForSSLCom struct {
 	AccessConfigForACMEExternalAccountBinding
 }
 
+type AccessConfigForSynologyDSM struct {
+	ServerUrl                string `json:"serverUrl"`
+	Username                 string `json:"username"`
+	Password                 string `json:"password"`
+	TotpSecret               string `json:"totpSecret,omitempty"`
+	AllowInsecureConnections bool   `json:"allowInsecureConnections,omitempty"`
+}
+
 type AccessConfigForTechnitiumDNS struct {
 	ServerUrl                string `json:"serverUrl"`
 	ApiToken                 string `json:"apiToken"`
@@ -525,6 +537,11 @@ type AccessConfigForTechnitiumDNS struct {
 type AccessConfigForTelegramBot struct {
 	BotToken string `json:"botToken"`
 	ChatId   string `json:"chatId,omitempty"`
+}
+
+type AccessConfigForTodayNIC struct {
+	UserId string `json:"userId"`
+	ApiKey string `json:"apiKey"`
 }
 
 type AccessConfigForTencentCloud struct {
@@ -577,7 +594,8 @@ type AccessConfigForWebhook struct {
 }
 
 type AccessConfigForWeComBot struct {
-	WebhookUrl string `json:"webhookUrl"`
+	WebhookUrl    string `json:"webhookUrl"`
+	CustomPayload string `json:"customPayload,omitempty"`
 }
 
 type AccessConfigForWestcn struct {

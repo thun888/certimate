@@ -14,7 +14,8 @@ import (
 	"github.com/certimate-go/certimate/pkg/core/deployer"
 	onepanelsdk "github.com/certimate-go/certimate/pkg/sdk3rd/1panel"
 	onepanelsdk2 "github.com/certimate-go/certimate/pkg/sdk3rd/1panel/v2"
-	xcert "github.com/certimate-go/certimate/pkg/utils/cert"
+	xcerthostname "github.com/certimate-go/certimate/pkg/utils/cert/hostname"
+	xwait "github.com/certimate-go/certimate/pkg/utils/wait"
 )
 
 type DeployerConfig struct {
@@ -163,7 +164,7 @@ func (d *Deployer) deployToWebsite(ctx context.Context, certPEM, privkeyPEM stri
 					errs = append(errs, err)
 				}
 				if i < len(websiteIds)-1 {
-					time.Sleep(time.Second * 5)
+					xwait.DelayWithContext(ctx, time.Second*5)
 				}
 			}
 		}
@@ -195,11 +196,6 @@ func (d *Deployer) deployToCertificate(ctx context.Context, certPEM, privkeyPEM 
 func (d *Deployer) getMatchedWebsiteIdsByCertificate(ctx context.Context, certPEM string) ([]int64, error) {
 	var websiteIds []int64
 
-	certX509, err := xcert.ParseCertificateFromPEM(certPEM)
-	if err != nil {
-		return nil, err
-	}
-
 	switch sdkClient := d.sdkClient.(type) {
 	case *onepanelsdk.Client:
 		{
@@ -217,7 +213,7 @@ func (d *Deployer) getMatchedWebsiteIdsByCertificate(ctx context.Context, certPE
 					Page:     int32(websiteSearchPage),
 					PageSize: int32(websiteSearchPageSize),
 				}
-				websiteSearchResp, err := sdkClient.WebsiteSearch(websiteSearchReq)
+				websiteSearchResp, err := sdkClient.WebsiteSearchWithContext(ctx, websiteSearchReq)
 				d.logger.Debug("sdk request '1panel.WebsiteSearch'", slog.Any("request", websiteSearchReq), slog.Any("response", websiteSearchResp))
 				if err != nil {
 					return nil, fmt.Errorf("failed to execute sdk request '1panel.WebsiteSearch': %w", err)
@@ -228,18 +224,18 @@ func (d *Deployer) getMatchedWebsiteIdsByCertificate(ctx context.Context, certPE
 				}
 
 				for _, websiteItem := range websiteSearchResp.Data.Items {
-					if certX509.VerifyHostname(websiteItem.PrimaryDomain) != nil {
+					if !xcerthostname.IsMatchByCertificatePEM(certPEM, websiteItem.PrimaryDomain) {
 						continue
 					}
 
-					websiteGetResp, err := sdkClient.WebsiteGet(websiteItem.ID)
+					websiteGetResp, err := sdkClient.WebsiteGetWithContext(ctx, websiteItem.ID)
 					d.logger.Debug("sdk request '1panel.WebsiteGet'", slog.Int64("websiteId", websiteItem.ID), slog.Any("response", websiteGetResp))
 					if err != nil {
 						return nil, fmt.Errorf("failed to execute sdk request '1panel.WebsiteGet': %w", err)
 					}
 
 					for _, domainInfo := range websiteGetResp.Data.Domains {
-						if domainInfo.SSL || certX509.VerifyHostname(domainInfo.Domain) == nil {
+						if domainInfo.SSL || xcerthostname.IsMatchByCertificatePEM(certPEM, domainInfo.Domain) {
 							websiteIds = append(websiteIds, websiteItem.ID)
 							break
 						}
@@ -271,7 +267,7 @@ func (d *Deployer) getMatchedWebsiteIdsByCertificate(ctx context.Context, certPE
 					Page:     int32(websiteSearchPage),
 					PageSize: int32(websiteSearchPageSize),
 				}
-				websiteSearchResp, err := sdkClient.WebsiteSearch(websiteSearchReq)
+				websiteSearchResp, err := sdkClient.WebsiteSearchWithContext(ctx, websiteSearchReq)
 				d.logger.Debug("sdk request '1panel.WebsiteSearch'", slog.Any("request", websiteSearchReq), slog.Any("response", websiteSearchResp))
 				if err != nil {
 					return nil, fmt.Errorf("failed to execute sdk request '1panel.WebsiteSearch': %w", err)
@@ -282,18 +278,18 @@ func (d *Deployer) getMatchedWebsiteIdsByCertificate(ctx context.Context, certPE
 				}
 
 				for _, websiteItem := range websiteSearchResp.Data.Items {
-					if certX509.VerifyHostname(websiteItem.PrimaryDomain) != nil {
+					if !xcerthostname.IsMatchByCertificatePEM(certPEM, websiteItem.PrimaryDomain) {
 						continue
 					}
 
-					websiteGetResp, err := sdkClient.WebsiteGet(websiteItem.ID)
+					websiteGetResp, err := sdkClient.WebsiteGetWithContext(ctx, websiteItem.ID)
 					d.logger.Debug("sdk request '1panel.WebsiteGet'", slog.Int64("websiteId", websiteItem.ID), slog.Any("response", websiteGetResp))
 					if err != nil {
 						return nil, fmt.Errorf("failed to execute sdk request '1panel.WebsiteGet': %w", err)
 					}
 
 					for _, domainInfo := range websiteGetResp.Data.Domains {
-						if domainInfo.SSL || certX509.VerifyHostname(domainInfo.Domain) == nil {
+						if domainInfo.SSL || xcerthostname.IsMatchByCertificatePEM(certPEM, domainInfo.Domain) {
 							websiteIds = append(websiteIds, websiteItem.ID)
 							break
 						}
@@ -324,7 +320,7 @@ func (d *Deployer) updateWebsiteCertificate(ctx context.Context, websiteId int64
 	case *onepanelsdk.Client:
 		{
 			// 获取网站 HTTPS 配置
-			websiteHttpsGetResp, err := sdkClient.WebsiteHttpsGet(websiteId)
+			websiteHttpsGetResp, err := sdkClient.WebsiteHttpsGetWithContext(ctx, websiteId)
 			d.logger.Debug("sdk request '1panel.WebsiteHttpsGet'", slog.Int64("websiteId", websiteId), slog.Any("response", websiteHttpsGetResp))
 			if err != nil {
 				return fmt.Errorf("failed to execute sdk request '1panel.WebsiteHttpsGet': %w", err)
@@ -348,7 +344,7 @@ func (d *Deployer) updateWebsiteCertificate(ctx context.Context, websiteId int64
 			if websiteHttpsPostReq.HttpConfig == "" {
 				websiteHttpsPostReq.HttpConfig = "HTTPToHTTPS"
 			}
-			websiteHttpsPostResp, err := sdkClient.WebsiteHttpsPost(websiteId, websiteHttpsPostReq)
+			websiteHttpsPostResp, err := sdkClient.WebsiteHttpsPostWithContext(ctx, websiteId, websiteHttpsPostReq)
 			d.logger.Debug("sdk request '1panel.WebsiteHttpsPost'", slog.Int64("websiteId", websiteId), slog.Any("request", websiteHttpsPostReq), slog.Any("response", websiteHttpsPostResp))
 			if err != nil {
 				return fmt.Errorf("failed to execute sdk request '1panel.WebsiteHttpsPost': %w", err)
@@ -358,7 +354,7 @@ func (d *Deployer) updateWebsiteCertificate(ctx context.Context, websiteId int64
 	case *onepanelsdk2.Client:
 		{
 			// 获取网站 HTTPS 配置
-			websiteHttpsGetResp, err := sdkClient.WebsiteHttpsGet(websiteId)
+			websiteHttpsGetResp, err := sdkClient.WebsiteHttpsGetWithContext(ctx, websiteId)
 			d.logger.Debug("sdk request '1panel.WebsiteHttpsGet'", slog.Int64("websiteId", websiteId), slog.Any("response", websiteHttpsGetResp))
 			if err != nil {
 				return fmt.Errorf("failed to execute sdk request '1panel.WebsiteHttpsGet': %w", err)
@@ -383,7 +379,7 @@ func (d *Deployer) updateWebsiteCertificate(ctx context.Context, websiteId int64
 			if websiteHttpsPostReq.HttpConfig == "" {
 				websiteHttpsPostReq.HttpConfig = "HTTPToHTTPS"
 			}
-			websiteHttpsPostResp, err := sdkClient.WebsiteHttpsPost(websiteId, websiteHttpsPostReq)
+			websiteHttpsPostResp, err := sdkClient.WebsiteHttpsPostWithContext(ctx, websiteId, websiteHttpsPostReq)
 			d.logger.Debug("sdk request '1panel.WebsiteHttpsPost'", slog.Int64("websiteId", websiteId), slog.Any("request", websiteHttpsPostReq), slog.Any("response", websiteHttpsPostResp))
 			if err != nil {
 				return fmt.Errorf("failed to execute sdk request '1panel.WebsiteHttpsPost': %w", err)

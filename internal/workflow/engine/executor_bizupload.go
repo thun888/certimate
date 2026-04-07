@@ -57,6 +57,10 @@ func (ne *bizUploadNodeExecutor) Execute(execCtx *NodeExecutionContext) (*NodeEx
 	if err != nil {
 		return execRes, err
 	} else {
+		if lastOutput != nil {
+			ne.logger.Info(fmt.Sprintf("found last node output #%s record", lastOutput.RunId))
+		}
+
 		if lastCertificate != nil {
 			ne.setOuputsOfResult(execCtx, execRes, lastCertificate, false)
 			ne.setVariablesOfResult(execCtx, execRes, lastCertificate)
@@ -177,7 +181,7 @@ func (ne *bizUploadNodeExecutor) Execute(execCtx *NodeExecutionContext) (*NodeEx
 		WorkflowNodeId: execCtx.Node.Id,
 	}
 	certificate.PopulateFromPEM(certPEM, privkeyPEM)
-	if certificate, err := ne.certificateRepo.Save(execCtx.ctx, certificate); err != nil {
+	if certificate, err := ne.certificateRepo.Save(execCtx.Context(), certificate); err != nil {
 		ne.logger.Warn("could not save certificate")
 		return execRes, err
 	} else {
@@ -193,13 +197,13 @@ func (ne *bizUploadNodeExecutor) Execute(execCtx *NodeExecutionContext) (*NodeEx
 }
 
 func (ne *bizUploadNodeExecutor) getLastOutputArtifacts(execCtx *NodeExecutionContext) (*domain.WorkflowOutput, *domain.Certificate, error) {
-	lastOutput, err := ne.wfoutputRepo.GetByWorkflowIdAndNodeId(execCtx.ctx, execCtx.WorkflowId, execCtx.Node.Id)
+	lastOutput, err := ne.wfoutputRepo.GetByWorkflowIdAndNodeId(execCtx.Context(), execCtx.WorkflowId, execCtx.Node.Id)
 	if err != nil && !domain.IsRecordNotFoundError(err) {
 		return nil, nil, fmt.Errorf("failed to get last output record of node #%s: %w", execCtx.Node.Id, err)
 	}
 
 	if lastOutput != nil {
-		lastCertificate, err := ne.certificateRepo.GetByWorkflowRunIdAndNodeId(execCtx.ctx, lastOutput.RunId, lastOutput.NodeId)
+		lastCertificate, err := ne.certificateRepo.GetByWorkflowRunIdAndNodeId(execCtx.Context(), lastOutput.RunId, lastOutput.NodeId)
 		if err != nil && !domain.IsRecordNotFoundError(err) {
 			return lastOutput, nil, fmt.Errorf("failed to get last certificate record of node #%s: %w", execCtx.Node.Id, err)
 		}

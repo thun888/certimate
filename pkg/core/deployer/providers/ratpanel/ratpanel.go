@@ -9,6 +9,7 @@ import (
 
 	"github.com/certimate-go/certimate/pkg/core/deployer"
 	ratpanelsdk "github.com/certimate-go/certimate/pkg/sdk3rd/ratpanel"
+	xcert "github.com/certimate-go/certimate/pkg/utils/cert"
 )
 
 type DeployerConfig struct {
@@ -25,6 +26,9 @@ type DeployerConfig struct {
 	// 网站名称。
 	// 部署资源类型为 [RESOURCE_TYPE_WEBSITE] 时必填。
 	SiteNames []string `json:"siteNames,omitempty"`
+	// 证书 ID。
+	// 部署资源类型为 [RESOURCE_TYPE_CERTIFICATE] 时必填。
+	CertificateId int64 `json:"certificateId,omitempty"`
 }
 
 type Deployer struct {
@@ -68,6 +72,11 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 			return nil, err
 		}
 
+	case RESOURCE_TYPE_CERTIFICATE:
+		if err := d.deployToCertificate(ctx, certPEM, privkeyPEM); err != nil {
+			return nil, err
+		}
+
 	default:
 		return nil, fmt.Errorf("unsupported resource type '%s'", d.config.ResourceType)
 	}
@@ -99,6 +108,34 @@ func (d *Deployer) deployToWebsite(ctx context.Context, certPEM, privkeyPEM stri
 	return nil
 }
 
+func (d *Deployer) deployToCertificate(ctx context.Context, certPEM, privkeyPEM string) error {
+	if d.config.CertificateId == 0 {
+		return errors.New("config `certificateId` is required")
+	}
+
+	// 解析证书内容
+	certX509, err := xcert.ParseCertificateFromPEM(certPEM)
+	if err != nil {
+		return err
+	}
+
+	// 更新 SSL 证书
+	certUpdateReq := &ratpanelsdk.CertUpdateRequest{
+		CertId:      d.config.CertificateId,
+		Type:        "upload",
+		Domains:     certX509.DNSNames,
+		Certificate: certPEM,
+		PrivateKey:  privkeyPEM,
+	}
+	certUpdateResp, err := d.sdkClient.CertUpdateWithContext(ctx, certUpdateReq)
+	d.logger.Debug("sdk request 'ratpanel.CertUpdate'", slog.Any("request", certUpdateReq), slog.Any("response", certUpdateResp))
+	if err != nil {
+		return fmt.Errorf("failed to execute sdk request 'ratpanel.CertUpdate': %w", err)
+	}
+
+	return nil
+}
+
 func (d *Deployer) updateSiteCertificate(ctx context.Context, siteName string, certPEM, privkeyPEM string) error {
 	// 设置站点 SSL 证书
 	setWebsiteCertReq := &ratpanelsdk.SetWebsiteCertRequest{
@@ -106,7 +143,7 @@ func (d *Deployer) updateSiteCertificate(ctx context.Context, siteName string, c
 		Certificate: certPEM,
 		PrivateKey:  privkeyPEM,
 	}
-	setWebsiteCertResp, err := d.sdkClient.SetWebsiteCert(setWebsiteCertReq)
+	setWebsiteCertResp, err := d.sdkClient.SetWebsiteCertWithContext(ctx, setWebsiteCertReq)
 	d.logger.Debug("sdk request 'ratpanel.SetWebsiteCert'", slog.Any("request", setWebsiteCertReq), slog.Any("response", setWebsiteCertResp))
 	if err != nil {
 		return fmt.Errorf("failed to execute sdk request 'ratpanel.SetWebsiteCert': %w", err)

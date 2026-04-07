@@ -7,106 +7,123 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/certimate/certimate?style=flat)](https://hub.docker.com/r/certimate/certimate)
 [![Release](https://img.shields.io/github/v/release/certimate-go/certimate?style=flat&sort=semver)](https://github.com/certimate-go/certimate/releases)
 [![License](https://img.shields.io/github/license/certimate-go/certimate?style=flat)](https://mit-license.org/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg?label=DeepWiki)](https://deepwiki.com/certimate-go/certimate)
 
 </div>
 
 <div align="center">
 
-中文 ｜ [English](README_EN.md)
+English ｜ [简体中文](README_zh.md)
 
 </div>
 
 ---
 
-## 🚩 项目简介
+## 🚩 Introduction
 
-做个人产品或者在中小企业里负责运维的同学，会遇到要管理多个域名的情况，需要给域名申请证书。但是手动申请证书有以下缺点：
+An open-source and free self-hosted SSL certificates ACME tool, automates the full-cycle of issuance, deployment, renewal, and monitoring visually.
 
-- 😱 麻烦：申请证书并部署到服务的流程虽不复杂，但也挺麻烦的，尤其是你有多个域名需要维护的时候。
-- 😭 易忘：另外当前免费证书的有效期只有 90 天，这就要求你定期的操作，增加了工作量的同时，你也很容易忘掉续期，从而导致网站访问不了。
+- **Self-hosted**: Private deployment. All data is stored locally, to ensure data privacy and security.
+- **Cross Platforms**: Compatible with various operating systems, including Windows/Linux/macOS.
+- **Zero Dependencies**: No need to install databases, runtimes, or any frameworks. Ready to use out of the box.
+- **Low Resource Usage**: Extremely lightweight, requiring only ~16 MB of memory.
+- **Easy to Use**: Automates certificate management with a visual workflow — all with just a few simple configurations.
 
-Certimate 就是为了解决上述问题而产生的，它具有以下优势：
+## 💡 Features
 
-- **本地部署**：一键安装，只需要下载二进制文件，然后直接运行即可。同时也支持 Docker 部署、源代码部署等方式。​
-- **数据安全**：由于是私有部署，所有数据均存储在自己的服务器上，不会经过第三方，确保数据的隐私和安全。​
-- **操作简单**：简单配置即可轻松申请 SSL 证书并部署到指定的目标上，在证书即将过期前自动续期，从申请证书到使用证书完全自动化，无需人工操作。​
+- Flexible workflow orchestration, fully automation from certificate application to deployment.
+- Supports requesting single/multiple/wildcard domain certificates, IP address certificates, with options for RSA or ECC key.
+- Supports DNS-01 challenge and HTTP-01 challenge both.
+- Supports various certificate formats such as PEM, PFX, JKS.
+- Supports more than 60+ domain registrars (e.g., AWS, Cloudflare, GoDaddy, Alibaba Cloud, Tencent Cloud, etc. [Check out full providers](https://docs.certimate.me/en-US/docs/reference/providers#supported-dns-providers)).
+- Supports more than 120+ deployment targets (e.g., Kubernetes, CDN, WAF, load balancers, etc. [Check out full providers](https://docs.certimate.me/en-US/docs/reference/providers#supported-hosting-providers)).
+- Supports multiple notification channels including email, Discord, Slack, Telegram, DingTalk, Feishu, WeCom, and more.
+- Supports multiple ACME CAs including Let's Encrypt, Actalis, Google Trust Services, SSL.com, ZeroSSL, and more.
+- More features waiting to be discovered.
 
-Certimate 旨在为用户提供一个安全、简便的 SSL 证书管理解决方案。
+## 🚀 Quick Start
 
-## 💡 功能特性
+**Run Certimate in 1 minute!**
 
-- 灵活的工作流编排方式，证书从申请到部署完全自动化；
-- 支持单域名、多域名、泛域名证书，可选 RSA、ECC 签名算法；
-- 支持 DNS-01（即基于域名解析验证）、HTTP-01（即基于文件验证）两种质询方式；
-- 支持 PEM、PFX、JKS 等多种格式输出证书；
-- 支持 60+ 域名托管商（如阿里云、腾讯云、Cloudflare 等，[点此查看完整清单](https://docs.certimate.me/docs/reference/providers#supported-dns-providers)）；
-- 支持 110+ 部署目标（如 Kubernetes、CDN、WAF、负载均衡等，[点此查看完整清单](https://docs.certimate.me/docs/reference/providers#supported-hosting-providers)）；
-- 支持邮件、钉钉、飞书、企业微信、Webhook 等多种通知渠道；
-- 支持 Let's Encrypt、Actalis、Google Trust Services、SSL.com、ZeroSSL 等多种 ACME 证书颁发机构；
-- 更多特性等待探索。
+<details>
+<summary>👉 Binary Installation: </summary>
 
-## ⏱️ 快速启动
-
-**1 分钟部署 Certimate！**
-
-以二进制部署为例，从 [GitHub Releases](https://github.com/certimate-go/certimate/releases) 页面下载预先编译好的二进制可执行文件压缩包，解压缩后在终端中执行：
+Download the archived package of precompiled executable files directly from [GitHub Releases](https://github.com/certimate-go/certimate/releases), extract and then execute:
 
 ```bash
 ./certimate serve
 ```
 
-浏览器中访问 `http://127.0.0.1:8090`。
+</details>
 
-初始的管理员账号及密码：
+<details>
+<summary>👉 Docker Installation: </summary>
 
-- 账号：`admin@certimate.fun`
-- 密码：`1234567890`
+```bash
+docker run -d \
+  --name certimate \
+  --restart unless-stopped \
+  -p 8090:8090 \
+  -v /etc/localtime:/etc/localtime:ro \
+  -v /etc/timezone:/etc/timezone:ro \
+  -v $(pwd)/data:/app/pb_data \
+  certimate/certimate:latest
+```
 
-即刻使用 Certimate。
+</details>
 
-如何使用 Docker 或其他部署方式请参考文档。
+Visit `http://127.0.0.1:8090` in your browser.
 
-## 📄 使用手册
+Default administrator account:
 
-请访问文档站 [docs.certimate.me](https://docs.certimate.me/) 以阅读使用手册。
+- Username: `admin@certimate.fun`
+- Password: `1234567890`
 
-相关文章：
+Work with Certimate right now. Or read other content in the documentation to learn more.
 
-- [《升级指南：迁移到 v0.4》](https://docs.certimate.me/docs/migrations/migrate-to-v0.4)
-- [《使用 CNAME 完成 ACME DNS-01 质询》](https://docs.certimate.me/blog/cname)
-- [《Why Certimate?》](https://docs.certimate.me/blog/why-certimate)
+## 📄 Documentation
 
-## ⭐ 运行界面
+For full documentation, please visit [docs.certimate.me](https://docs.certimate.me/).
 
-[![Screenshot](https://i.imgur.com/4DAUKEE.gif)](https://www.bilibili.com/video/BV1xockeZEm2)
+Related articles:
 
-## 🤝 参与贡献
+> - [_Migrate to v0.4_](https://docs.certimate.me/en-US/docs/migrations/migrate-to-v0.4)
+> - [_使用 CNAME 完成 ACME DNS-01 质询_](https://docs.certimate.me/en-US/blog/cname)
+> - [_Why Certimate?_](https://docs.certimate.me/en-US/blog/why-certimate)
 
-Certimate 是一个免费且开源的项目。我们欢迎任何人为 Certimate 做出贡献，以帮助改善 Certimate。包括但不限于：提交代码、反馈缺陷、交流想法，或分享你基于 Certimate 的使用案例。同时，我们也欢迎用户在个人博客或社交媒体上分享 Certimate。
+## 🖥️ Screenshot
 
-如果你想要贡献代码，请先阅读我们的[贡献指南](./CONTRIBUTING.md)。
+[![Screenshot](https://i.imgur.com/4DAUKEE.gif)](https://www.youtube.com/watch?v=am_yzdfyNOE)
 
-请在 https://github.com/certimate-go/certimate 提交 [Issues](https://github.com/certimate-go/certimate/issues) 和 [Pull Requests](https://github.com/certimate-go/certimate/pulls)。
+## 🤝 Contributing
 
-#### 感谢以下贡献者对 Certimate 做出的贡献：
+Certimate is a free and open-source project, and your feedback and contributions are needed and always welcome. Contributions include but are not limited to: submitting code, reporting bugs, sharing ideas, or showcasing your use cases based on Certimate. We also encourage users to share Certimate on personal blogs or social media.
+
+For those who'd like to contribute code, see our [Contribution Guide](./CONTRIBUTING_EN.md).
+
+[Issues](https://github.com/certimate-go/certimate/issues) and [Pull Requests](https://github.com/certimate-go/certimate/pulls) are opened at https://github.com/certimate-go/certimate.
+
+#### Contributors
 
 [![Contributors](https://contrib.rocks/image?repo=certimate-go/certimate)](https://github.com/certimate-go/certimate/graphs/contributors)
 
-## ⛔ 免责声明
+## ⛔ Disclaimer
 
-Certimate 遵循 [MIT License](https://opensource.org/licenses/MIT) 开源协议，完全免费提供，旨在“按现状”供用户使用。作者及贡献者不对使用本软件所产生的任何直接或间接后果承担责任，包括但不限于性能下降、数据丢失、服务中断、或任何其他类型的损害。
+This repository is available under the [MIT License](https://opensource.org/licenses/MIT), and distributed “as-is” without any warranty of any kind. The authors and contributors are not responsible for any damages or losses resulting from the use or inability to use this software, including but not limited to data loss, business interruption, or any other potential harm.
 
-**无任何保证**：本软件不提供任何明示或暗示的保证，包括但不限于对特定用途的适用性、无侵权性、商用性及可靠性的保证。
+**No Warranties**: This software comes without any express or implied warranties, including but not limited to implied warranties of merchantability, fitness for a particular purpose, and non-infringement.
 
-**用户责任**：使用本软件即表示您理解并同意承担由此产生的一切风险及责任。
+**User Responsibilities**: By using this software, you agree to take full responsibility for any outcomes resulting from its use.
 
-## 🌐 加入社群
+## 🌐 Join the Community
 
 - [Telegram](https://t.me/+ZXphsppxUg41YmVl)
-- 微信群聊（超 200 人需邀请入群，可先加作者好友）
+- Wechat Group (contact to the author [@usual2970](https://github.com/usual2970) to getting invitation)
 
   <img src="https://i.imgur.com/8xwsLTA.png" width="200"/>
 
-## 🚀 Star 趋势图
+## ⭐ Star History
+
+Star Certificate on GitHub and be instantly notified of new releases.
 
 [![Stargazers over time](https://starchart.cc/certimate-go/certimate.svg?variant=adaptive)](https://starchart.cc/certimate-go/certimate)

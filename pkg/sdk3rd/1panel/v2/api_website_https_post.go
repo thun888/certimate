@@ -19,14 +19,14 @@ type WebsiteHttpsPostRequest struct {
 }
 
 type WebsiteHttpsPostResponse struct {
-	apiResponseBase
+	sdkResponseBase
 }
 
 func (c *Client) WebsiteHttpsPost(websiteId int64, req *WebsiteHttpsPostRequest) (*WebsiteHttpsPostResponse, error) {
-	return c.WebsiteHttpsPostConfWithContext(context.Background(), websiteId, req)
+	return c.WebsiteHttpsPostWithContext(context.Background(), websiteId, req)
 }
 
-func (c *Client) WebsiteHttpsPostConfWithContext(ctx context.Context, websiteId int64, req *WebsiteHttpsPostRequest) (*WebsiteHttpsPostResponse, error) {
+func (c *Client) WebsiteHttpsPostWithContext(ctx context.Context, websiteId int64, req *WebsiteHttpsPostRequest) (*WebsiteHttpsPostResponse, error) {
 	if websiteId == 0 {
 		return nil, fmt.Errorf("sdkerr: unset websiteId")
 	}

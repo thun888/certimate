@@ -1,13 +1,17 @@
 package migrations
 
 import (
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
 )
 
 func init() {
 	m.Register(func(app core.App) error {
-		if mr, _ := app.FindFirstRecordByFilter("_migrations", "file='1762516800_app_v0.4.4.go'"); mr != nil {
+		if err := app.DB().
+			NewQuery("SELECT (1) FROM _migrations WHERE file={:file} LIMIT 1").
+			Bind(dbx.Params{"file": "1762516800_m0.4.4.go"}).
+			One(&struct{}{}); err == nil {
 			return nil
 		}
 
@@ -37,12 +41,46 @@ func init() {
 		// update collection `settings`
 		//   - modify field `content` schema of `persistence`
 		{
-			if _, err := app.DB().NewQuery("UPDATE settings SET content = REPLACE(content, '\"expiredCertificatesMaxDaysRetention\"', '\"certificatesRetentionMaxDays\"') WHERE name = 'persistence'").Execute(); err != nil {
+			collection, err := app.FindCollectionByNameOrId("dy6ccjb60spfy6p")
+			if err != nil {
 				return err
 			}
 
-			if _, err := app.DB().NewQuery("UPDATE settings SET content = REPLACE(content, '\"workflowRunsMaxDaysRetention\"', '\"workflowRunsRetentionMaxDays\"') WHERE name = 'persistence'").Execute(); err != nil {
+			records, err := app.FindRecordsByFilter(collection, "name=\"persistence\"", "", 1, 0)
+			if err != nil {
 				return err
+			} else if len(records) != 0 {
+				record := records[0]
+				changed := false
+
+				content := make(map[string]any)
+				if err := record.UnmarshalJSONField("content", &content); err != nil {
+					return err
+				} else {
+					if _, ok := content["expiredCertificatesMaxDaysRetention"]; ok {
+						content["certificatesRetentionMaxDays"] = content["expiredCertificatesMaxDaysRetention"]
+						delete(content, "expiredCertificatesMaxDaysRetention")
+
+						record.Set("content", content)
+						changed = true
+					}
+
+					if _, ok := content["workflowRunsMaxDaysRetention"]; ok {
+						content["workflowRunsRetentionMaxDays"] = content["workflowRunsMaxDaysRetention"]
+						delete(content, "workflowRunsMaxDaysRetention")
+
+						record.Set("content", content)
+						changed = true
+					}
+				}
+
+				if changed {
+					if err := app.Save(record); err != nil {
+						return err
+					}
+
+					tracer.Printf("record #%s in collection '%s' updated", record.Id, collection.Name)
+				}
 			}
 		}
 

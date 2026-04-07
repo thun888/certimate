@@ -11,7 +11,7 @@ body:
         **Before you submit the issue, please make sure of the following checklist**:
         1. Yes, I'm using the latest release and can reproduce the issue. Issues that are not in the latest version will be closed directly.
         2. Yes, I've searched for [existing issues](https://github.com/certimate-go/certimate/issues) (including closed ones) on GitHub and didn't find any similar.
-        3. Yes, I've read the [documentation](https://docs.certimate.me/en/) and didn't find any similar.
+        3. Yes, I've read the [documentation](https://docs.certimate.me/) and didn't find any similar.
         4. Please describe the problem in detail according to the template specification, otherwise the issue will be closed directly.
         5. Please limit one report per issue.
 

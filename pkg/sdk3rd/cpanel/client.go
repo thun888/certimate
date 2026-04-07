@@ -32,7 +32,7 @@ func NewClient(serverUrl string, username, apiToken string) (*Client, error) {
 	}
 
 	client := resty.New().
-		SetBaseURL(strings.TrimRight(serverUrl, "/")+"/execute").
+		SetBaseURL(strings.TrimSuffix(serverUrl, "/")+"/execute").
 		SetHeader("Accept", "application/json").
 		SetHeader("Authorization", fmt.Sprintf("cpanel %s:%s", username, apiToken)).
 		SetHeader("User-Agent", app.AppUserAgent)
@@ -82,7 +82,7 @@ func (c *Client) doRequest(req *resty.Request) (*resty.Response, error) {
 	return resp, nil
 }
 
-func (c *Client) doRequestWithResult(req *resty.Request, res apiResponse) (*resty.Response, error) {
+func (c *Client) doRequestWithResult(req *resty.Request, res sdkResponse) (*resty.Response, error) {
 	if req == nil {
 		return nil, fmt.Errorf("sdkerr: nil request")
 	}

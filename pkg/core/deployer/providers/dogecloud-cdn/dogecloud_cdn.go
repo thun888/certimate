@@ -13,7 +13,7 @@ import (
 	mcertmgr "github.com/certimate-go/certimate/pkg/core/certmgr/providers/dogecloud"
 	"github.com/certimate-go/certimate/pkg/core/deployer"
 	dogesdk "github.com/certimate-go/certimate/pkg/sdk3rd/dogecloud"
-	xcert "github.com/certimate-go/certimate/pkg/utils/cert"
+	xcerthostname "github.com/certimate-go/certimate/pkg/utils/cert/hostname"
 )
 
 type DeployerConfig struct {
@@ -96,18 +96,13 @@ func (d *Deployer) Deploy(ctx context.Context, certPEM, privkeyPEM string) (*dep
 
 	case DOMAIN_MATCH_PATTERN_CERTSAN:
 		{
-			certX509, err := xcert.ParseCertificateFromPEM(certPEM)
-			if err != nil {
-				return nil, err
-			}
-
 			domainCandidates, err := d.getAllDomains(ctx)
 			if err != nil {
 				return nil, err
 			}
 
 			domains = lo.Filter(domainCandidates, func(domain string, _ int) bool {
-				return certX509.VerifyHostname(domain) == nil
+				return xcerthostname.IsMatchByCertificatePEM(certPEM, domain)
 			})
 			if len(domains) == 0 {
 				return nil, errors.New("could not find any domains matched by certificate")
@@ -150,7 +145,7 @@ func (d *Deployer) getAllDomains(ctx context.Context) ([]string, error) {
 
 	// 获取域名列表
 	// REF: https://docs.dogecloud.com/cdn/api-domain-list
-	listCdnDomainResp, err := d.sdkClient.ListCdnDomain()
+	listCdnDomainResp, err := d.sdkClient.ListCdnDomainWithContext(ctx)
 	d.logger.Debug("sdk request 'cdn.ListCdnDomain'", slog.Any("response", listCdnDomainResp))
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute sdk request 'cdn.ListCdnDomain': %w", err)
@@ -177,7 +172,7 @@ func (d *Deployer) updateDomainCertificate(ctx context.Context, domain string, c
 		CertId: cloudCertId,
 		Domain: domain,
 	}
-	bindCdnCertResp, err := d.sdkClient.BindCdnCert(bindCdnCertReq)
+	bindCdnCertResp, err := d.sdkClient.BindCdnCertWithContext(ctx, bindCdnCertReq)
 	d.logger.Debug("sdk request 'cdn.BindCdnCert'", slog.Any("request", bindCdnCertReq), slog.Any("response", bindCdnCertResp))
 	if err != nil {
 		return fmt.Errorf("failed to execute sdk request 'cdn.BindCdnCert': %w", err)

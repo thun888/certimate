@@ -1,14 +1,19 @@
 package migrations
 
 import (
-	"github.com/go-viper/mapstructure/v2"
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
+
+	snaps "github.com/certimate-go/certimate/migrations/snaps/v0.4"
 )
 
 func init() {
 	m.Register(func(app core.App) error {
-		if mr, _ := app.FindFirstRecordByFilter("_migrations", "file='1762142400_m0.4.3.go'"); mr != nil {
+		if err := app.DB().
+			NewQuery("SELECT (1) FROM _migrations WHERE file={:file} LIMIT 1").
+			Bind(dbx.Params{"file": "1762142400_m0.4.3.go"}).
+			One(&struct{}{}); err == nil {
 			return nil
 		}
 
@@ -71,12 +76,14 @@ func init() {
 			if _, err := app.DB().NewQuery("UPDATE certificate SET validityInterval = (STRFTIME('%s', validityNotAfter) - STRFTIME('%s', validityNotBefore))").Execute(); err != nil {
 				return err
 			}
+
+			tracer.Printf("collection '%s' updated", collection.Name)
 		}
 
 		// adapt to new workflow data structure
 		{
-			walker := &mWorkflowGraphWalker{}
-			walker.Define(func(node *mWorkflowNode) (_changed bool, _err error) {
+			walker := &snaps.WorkflowGraphWalker{}
+			walker.Define(func(node *snaps.WorkflowNode) (_changed bool, _err error) {
 				_changed = false
 				_err = nil
 
@@ -84,24 +91,18 @@ func init() {
 					return
 				}
 
-				if node.Data == nil {
+				nodeCfg := node.Data.Config
+
+				if nodeCfg["keySource"] == nil || nodeCfg["keySource"] == "" {
+					nodeCfg["keySource"] = "auto"
+
+					_changed = true
 					return
-				}
-
-				if _, ok := node.Data["config"]; ok {
-					nodeCfg := node.Data["config"].(map[string]any)
-					if nodeCfg["keySource"] == nil || nodeCfg["keySource"] == "" {
-						nodeCfg["keySource"] = "auto"
-
-						node.Data["config"] = nodeCfg
-						_changed = true
-						return
-					}
 				}
 
 				return
 			})
-			walker.Define(func(node *mWorkflowNode) (_changed bool, _err error) {
+			walker.Define(func(node *snaps.WorkflowNode) (_changed bool, _err error) {
 				_changed = false
 				_err = nil
 
@@ -109,19 +110,13 @@ func init() {
 					return
 				}
 
-				if node.Data == nil {
+				nodeCfg := node.Data.Config
+
+				if nodeCfg["source"] == nil || nodeCfg["source"] == "" {
+					nodeCfg["source"] = "form"
+
+					_changed = true
 					return
-				}
-
-				if _, ok := node.Data["config"]; ok {
-					nodeCfg := node.Data["config"].(map[string]any)
-					if nodeCfg["source"] == nil || nodeCfg["source"] == "" {
-						nodeCfg["source"] = "form"
-
-						node.Data["config"] = nodeCfg
-						_changed = true
-						return
-					}
 				}
 
 				return
@@ -143,50 +138,16 @@ func init() {
 				for _, record := range records {
 					changed := false
 
-					if record.GetRaw("graphDraft") != nil {
-						graph := make(map[string]any)
-						if err := record.UnmarshalJSONField("graphDraft", &graph); err != nil {
-							return err
-						}
-
-						if _, ok := graph["nodes"]; ok {
-							nodes := make([]*mWorkflowNode, 0)
-							if err := mapstructure.Decode(graph["nodes"], &nodes); err != nil {
-								return err
-							}
-
-							nodesChanged, err := walker.Visit(nodes)
-							if err != nil {
-								return err
-							} else if nodesChanged {
-								graph["nodes"] = nodes
-								record.Set("graphDraft", graph)
-								changed = true
-							}
-						}
+					if ret, err := walker.Migrate(record, "graphDraft"); err != nil {
+						return err
+					} else {
+						changed = changed || ret
 					}
 
-					if record.GetRaw("graphContent") != nil {
-						graph := make(map[string]any)
-						if err := record.UnmarshalJSONField("graphContent", &graph); err != nil {
-							return err
-						}
-
-						if _, ok := graph["nodes"]; ok {
-							nodes := make([]*mWorkflowNode, 0)
-							if err := mapstructure.Decode(graph["nodes"], &nodes); err != nil {
-								return err
-							}
-
-							nodesChanged, err := walker.Visit(nodes)
-							if err != nil {
-								return err
-							} else if nodesChanged {
-								graph["nodes"] = nodes
-								record.Set("graphContent", graph)
-								changed = true
-							}
-						}
+					if ret, err := walker.Migrate(record, "graphContent"); err != nil {
+						return err
+					} else {
+						changed = changed || ret
 					}
 
 					if changed {
@@ -215,27 +176,10 @@ func init() {
 				for _, record := range records {
 					changed := false
 
-					if record.GetRaw("graph") != nil {
-						graph := make(map[string]any)
-						if err := record.UnmarshalJSONField("graph", &graph); err != nil {
-							return err
-						}
-
-						if _, ok := graph["nodes"]; ok {
-							nodes := make([]*mWorkflowNode, 0)
-							if err := mapstructure.Decode(graph["nodes"], &nodes); err != nil {
-								return err
-							}
-
-							nodesChanged, err := walker.Visit(nodes)
-							if err != nil {
-								return err
-							} else if nodesChanged {
-								graph["nodes"] = nodes
-								record.Set("graph", graph)
-								changed = true
-							}
-						}
+					if ret, err := walker.Migrate(record, "graph"); err != nil {
+						return err
+					} else {
+						changed = changed || ret
 					}
 
 					if changed {

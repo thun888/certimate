@@ -7,12 +7,14 @@ import (
 
 type WebsiteSSLSearchRequest struct {
 	Domain   string `json:"domain"`
+	Order    string `json:"order"`
+	OrderBy  string `json:"orderBy"`
 	Page     int32  `json:"page"`
 	PageSize int32  `json:"pageSize"`
 }
 
 type WebsiteSSLSearchResponse struct {
-	apiResponseBase
+	sdkResponseBase
 
 	Data *struct {
 		Items []*struct {

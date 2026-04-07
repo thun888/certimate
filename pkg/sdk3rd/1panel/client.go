@@ -32,7 +32,7 @@ func NewClient(serverUrl, apiKey string) (*Client, error) {
 	}
 
 	client := resty.New().
-		SetBaseURL(strings.TrimRight(serverUrl, "/")+"/api/v1").
+		SetBaseURL(strings.TrimSuffix(serverUrl, "/")+"/api/v1").
 		SetHeader("Accept", "application/json").
 		SetHeader("Content-Type", "application/json").
 		SetHeader("User-Agent", app.AppUserAgent).
@@ -91,7 +91,7 @@ func (c *Client) doRequest(req *resty.Request) (*resty.Response, error) {
 	return resp, nil
 }
 
-func (c *Client) doRequestWithResult(req *resty.Request, res apiResponse) (*resty.Response, error) {
+func (c *Client) doRequestWithResult(req *resty.Request, res sdkResponse) (*resty.Response, error) {
 	if req == nil {
 		return nil, fmt.Errorf("sdkerr: nil request")
 	}
